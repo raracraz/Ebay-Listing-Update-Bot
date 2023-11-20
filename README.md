@@ -1,6 +1,9 @@
 # Ebay Listing Update Bot
 This is a bot that monitors eBay seller listings and sends notifications to your Telegram account when there are updates.
 
+## Workflow Diagram
+![Blank diagram](https://github.com/raracraz/Ebay-Listing-Update-Bot/assets/88528326/98c7e235-a9b6-44d9-8dda-ef6fafbd9f0a)
+
 ## Features
 - [x] Monitor eBay seller listings
 - [x] Send notifications to Telegram account/group
