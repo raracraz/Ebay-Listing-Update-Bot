@@ -22,42 +22,42 @@ token = config.get('TelegramBotConfig', 'token')
 my_user_id = int(config.get('TelegramBotConfig', 'my_user_id'))
 dest_channel_id = config.get('TelegramBotConfig', 'dest_channel_id')
 
-def get_updated_listings(seller_name, last_checked):
-    try:
-        appid = config.get('EbayConfig', 'appid')
-        api = Finding(appid=appid, config_file=None)
-        response = api.execute('findItemsAdvanced', {
-            'itemFilter': [
-                {'name': 'Seller', 'value': str(seller_name)},
-                {'name': 'StartTimeFrom', 'value': last_checked.strftime('%Y-%m-%dT%H:%M:%S')}
-            ]
-        })
-        with open('output.json', 'w') as f:
-            json.dump(response.dict(), f, indent=4, sort_keys=True)
-        return response.dict()
-    except ConnectionError as e:
-        print(e)
-        print(e.response.dict())
+def get_updated_listings(sellers, last_checked):
+    all_items = []
+    for seller_name in sellers:
+        try:
+            api = Finding(appid=appid, config_file=None)
+            response = api.execute('findItemsAdvanced', {
+                'itemFilter': [
+                    {'name': 'Seller', 'value': seller_name},
+                    {'name': 'StartTimeFrom', 'value': last_checked.strftime('%Y-%m-%dT%H:%M:%S')}
+                ]
+            })
+            response_dict = response.dict()
+            if response_dict.get('searchResult', {}).get('_count', '0') != '0':
+                items = response_dict['searchResult']['item']
+                all_items.extend(items)
+        except ConnectionError as e:
+            print(e)
+            print(e.response.dict())
+    return all_items
 
 def main():
-    seller_name = config.get('EbayFilters', 'seller_name')
-    # Initialize last_checked to one day before the current time
+    sellers = config.get('EbayFilters', 'sellers').split(',')
+    # Initialize last_checked to one day before the current time, rounded down to the nearest second
     gmt = pytz.timezone('GMT')
-    last_checked = datetime.now(gmt) - timedelta(days=1)
+    last_checked = datetime.now(gmt).replace(microsecond=0) - timedelta(days=1)
 
     updater = Updater(token, use_context=True)
 
     while True:
-        updated_listings = get_updated_listings(seller_name, last_checked)
+        updated_listings = get_updated_listings(sellers, last_checked)
+        # Round down current_time to the nearest second
+        current_time = datetime.now(gmt).replace(microsecond=0)
 
-        # Update last_checked to the current time before checking for new listings
-        current_time = datetime.now(gmt)
-
-        if updated_listings.get('searchResult', {}).get('_count', '0') != '0':
-            items = updated_listings['searchResult']['item']
-            print(f"Found {len(items)} new listings.")
-
-            for item in items:
+        if updated_listings:
+            print(f"Found {len(updated_listings)} new listings.")
+            for item in updated_listings:
                 message = f"New item: {item['title']} at {item['viewItemURL']}"
                 try:
                     updater.bot.send_message(chat_id=dest_channel_id, text=message)
@@ -69,9 +69,9 @@ def main():
         else:
             print("No new listings found.")
 
-        # Update last_checked to the time before the listings check
+        print(f"Updating last_checked to {current_time}")
         last_checked = current_time
-        time.sleep(60)  # Wait for 1 minutes before checking again
+        time.sleep(60)  # Wait for 1 minute before checking again
 
 if __name__ == '__main__':
     main()
